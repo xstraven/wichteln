@@ -129,3 +129,7 @@ dmypy.json
 .pyre/
 *.ipynb
 .vscode
+
+# Node / Frontend
+frontend/node_modules/
+frontend/dist/

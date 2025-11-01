@@ -90,7 +90,8 @@ async def create_exchange(
     description: str = Form(""),
     db: AsyncSession = Depends(get_db)
 ):
-    exchange = Exchange(name=name, description=description)
+    identifier = generate_unique_code(8)
+    exchange = Exchange(name=name, identifier=identifier, description=description)
     db.add(exchange)
     await db.commit()
     await db.refresh(exchange)
@@ -98,6 +99,7 @@ async def create_exchange(
     content = f"""
         <h1>Exchange Created!</h1>
         <p>Your exchange '{name}' has been created successfully.</p>
+        <p>Share this identifier with participants: <span class="code">{exchange.identifier}</span></p>
         <a href="/exchange/{exchange.id}/participants">Add Participants</a>
         <br><br>
         <a href="/">Back to Home</a>

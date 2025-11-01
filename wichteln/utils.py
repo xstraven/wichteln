@@ -1,5 +1,6 @@
 import random
 import string
+import re
 from typing import Dict, List
 
 
@@ -66,3 +67,11 @@ def generate_secret_santa_matches(participant_ids: List[int], constraints: Dict[
 def validate_email(email: str) -> bool:
     """Basic email validation."""
     return "@" in email and "." in email.split("@")[-1]
+
+
+def slugify(value: str) -> str:
+    """Simplified slugify helper to normalise identifier/email parts."""
+    value = value.strip().lower()
+    value = re.sub(r"[^a-z0-9]+", "-", value)
+    value = re.sub(r"-{2,}", "-", value)
+    return value.strip("-") or "item"
