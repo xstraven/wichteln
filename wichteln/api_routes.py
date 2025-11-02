@@ -13,7 +13,7 @@ from wichteln.schemas import (
     RevealRequest,
     RevealResponse,
 )
-from wichteln.utils import generate_secret_santa_matches, slugify
+from wichteln.utils import generate_secret_santa_matches
 
 api_router = APIRouter(prefix="/api", tags=["api"])
 
