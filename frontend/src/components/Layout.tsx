@@ -17,8 +17,8 @@ const Layout = ({ children }: LayoutProps) => {
               🎄
             </span>
             <div className="brand-text">
-              <span className="brand-title">Wichteln</span>
-              <span className="brand-subtitle">Secret Santa Magic</span>
+              <span className="brand-title gold-accent">Wichteln</span>
+              <span className="brand-subtitle">Secret Santa Magic ✨</span>
             </div>
           </Link>
           <nav className="nav-links" aria-label="Main navigation">

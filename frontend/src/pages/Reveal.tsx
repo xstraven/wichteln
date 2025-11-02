@@ -44,9 +44,11 @@ const Reveal = () => {
   };
 
   return (
-    <section className="panel">
+    <section className="panel festive-panel">
       <div className="panel-header">
-        <h1>Reveal Your Match</h1>
+        <div className="festive-header">
+          <h1>Reveal Your Match</h1>
+        </div>
         <p>Enter the magical identifier and your name to uncover who you&apos;re gifting.</p>
       </div>
 
@@ -85,7 +87,7 @@ const Reveal = () => {
         ) : null}
 
         <div className="form-actions">
-          <button type="submit" className="cta primary" disabled={isLoading}>
+          <button type="submit" className="cta primary gift-icon" disabled={isLoading}>
             {isLoading ? "Checking the list..." : "Reveal"}
           </button>
           <button type="button" className="cta secondary" onClick={reset} disabled={isLoading}>

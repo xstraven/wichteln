@@ -163,9 +163,11 @@ const CreateGroup = () => {
   };
 
   return (
-    <section className="panel">
+    <section className="panel festive-panel">
       <div className="panel-header">
-        <h1>Create a Secret Santa Group</h1>
+        <div className="festive-header">
+          <h1>Create a Secret Santa Group</h1>
+        </div>
         <p>
           Add your participant list, sprinkle in any forbidden combos, and share the identifier with
           your festive crew.

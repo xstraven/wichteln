@@ -449,3 +449,130 @@ async def test_many_constraints(client: AsyncClient):
     body = response.json()
     assert body["participantCount"] == 5
     assert body["illegalPairCount"] == 5
+
+
+@pytest.mark.asyncio
+async def test_match_validity_no_double_givers(client: AsyncClient):
+    """Test that each participant gives exactly once (no double givers)"""
+    identifier = unique_identifier()
+    participants = [{"name": f"Person{i}"} for i in range(4)]
+
+    payload = {
+        "identifier": identifier,
+        "participants": participants,
+        "illegalPairs": [],
+    }
+
+    create_response = await client.post("/api/groups", json=payload)
+    assert create_response.status_code == 201
+
+    # Retrieve all matches
+    matches = []
+    for i in range(4):
+        reveal_response = await client.post(
+            f"/api/groups/{identifier}/reveal",
+            json={"name": f"Person{i}"},
+        )
+        assert reveal_response.status_code == 200
+        matches.append((f"Person{i}", reveal_response.json()["recipientName"]))
+
+    # Verify each person appears as giver exactly once
+    givers = [match[0] for match in matches]
+    assert len(givers) == len(set(givers)), "Some participants gave multiple times"
+    assert set(givers) == {f"Person{i}" for i in range(4)}, "Not all participants are givers"
+
+
+@pytest.mark.asyncio
+async def test_match_validity_no_double_recipients(client: AsyncClient):
+    """Test that each participant receives exactly once (no double recipients)"""
+    identifier = unique_identifier()
+    participants = [{"name": f"Person{i}"} for i in range(4)]
+
+    payload = {
+        "identifier": identifier,
+        "participants": participants,
+        "illegalPairs": [],
+    }
+
+    create_response = await client.post("/api/groups", json=payload)
+    assert create_response.status_code == 201
+
+    # Retrieve all matches
+    matches = []
+    for i in range(4):
+        reveal_response = await client.post(
+            f"/api/groups/{identifier}/reveal",
+            json={"name": f"Person{i}"},
+        )
+        assert reveal_response.status_code == 200
+        matches.append((f"Person{i}", reveal_response.json()["recipientName"]))
+
+    # Verify each person appears as recipient exactly once
+    recipients = [match[1] for match in matches]
+    assert len(recipients) == len(set(recipients)), "Some participants received multiple gifts"
+    assert set(recipients) == {f"Person{i}" for i in range(4)}, "Not all participants are recipients"
+
+
+@pytest.mark.asyncio
+async def test_impossible_constraints_rejected(client: AsyncClient):
+    """Test that impossible constraint combinations are rejected"""
+    participants = [{"name": "Alice"}, {"name": "Bob"}, {"name": "Charlie"}]
+
+    # Make constraints impossible: Alice can't give to Bob or Charlie, so she must give to herself
+    constraints = [
+        {"giver": "Alice", "receiver": "Bob"},
+        {"giver": "Alice", "receiver": "Charlie"},
+    ]
+
+    payload = {
+        "identifier": unique_identifier(),
+        "participants": participants,
+        "illegalPairs": constraints,
+    }
+
+    response = await client.post("/api/groups", json=payload)
+    # Should fail because constraints are impossible to satisfy
+    assert response.status_code == 400, f"Expected 400, got {response.status_code}: {response.text}"
+    assert "constraint" in response.json()["detail"].lower()
+
+
+@pytest.mark.asyncio
+async def test_complex_constraint_chain(client: AsyncClient):
+    """Test group with complex overlapping constraints"""
+    participants = [{"name": f"Person{i}"} for i in range(6)]
+
+    # Create a complex but solvable constraint pattern
+    constraints = [
+        {"giver": "Person0", "receiver": "Person1"},
+        {"giver": "Person1", "receiver": "Person2"},
+        {"giver": "Person2", "receiver": "Person0"},
+        {"giver": "Person3", "receiver": "Person4"},
+        {"giver": "Person4", "receiver": "Person3"},
+    ]
+
+    payload = {
+        "identifier": unique_identifier(),
+        "participants": participants,
+        "illegalPairs": constraints,
+    }
+
+    response = await client.post("/api/groups", json=payload)
+    assert response.status_code == 201, response.text
+    body = response.json()
+    assert body["participantCount"] == 6
+
+    # Verify the matches respect all constraints
+    matches = {}
+    for i in range(6):
+        reveal_response = await client.post(
+            f"/api/groups/{payload['identifier']}/reveal",
+            json={"name": f"Person{i}"},
+        )
+        assert reveal_response.status_code == 200
+        matches[f"Person{i}"] = reveal_response.json()["recipientName"]
+
+    # Check that no forbidden pair exists in the matches
+    for constraint in constraints:
+        giver = constraint["giver"]
+        receiver = constraint["receiver"]
+        assert matches[giver] != receiver, f"Constraint violated: {giver} gave to {receiver}"
