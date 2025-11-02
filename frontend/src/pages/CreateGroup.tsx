@@ -40,6 +40,7 @@ const parseNames = (raw: string): ParsedNames => {
 
 const CreateGroup = () => {
   const [identifier, setIdentifier] = useState<string>("");
+  const [isLoadingIdentifier, setIsLoadingIdentifier] = useState<boolean>(true);
   const [description, setDescription] = useState<string>("");
   const [namesInput, setNamesInput] = useState<string>("");
   const [illegalPairs, setIllegalPairs] = useState<IllegalPairPayload[]>([]);
@@ -59,6 +60,8 @@ const CreateGroup = () => {
         console.error("Failed to fetch identifier:", err);
         // Fallback: allow user to enter their own
         setIdentifier("");
+      } finally {
+        setIsLoadingIdentifier(false);
       }
     };
     loadIdentifier();
@@ -67,6 +70,9 @@ const CreateGroup = () => {
   const { names, duplicates } = useMemo(() => parseNames(namesInput), [namesInput]);
 
   const identifierError = useMemo(() => {
+    if (isLoadingIdentifier) {
+      return null; // No error while loading
+    }
     if (!identifier.trim()) {
       return "Choose a festive three-word identifier (e.g. GingerbreadStarGazer).";
     }
@@ -74,9 +80,9 @@ const CreateGroup = () => {
       return "Identifier should be PascalCase and at least three words (e.g. CozyPineMittens).";
     }
     return null;
-  }, [identifier]);
+  }, [identifier, isLoadingIdentifier]);
 
-  const canSubmit = identifierError === null && names.length >= 2;
+  const canSubmit = identifierError === null && names.length >= 2 && !isLoadingIdentifier;
 
   const handleAddPair = () => {
     if (!newPair.giver || !newPair.receiver || newPair.giver === newPair.receiver) {
@@ -179,9 +185,7 @@ const CreateGroup = () => {
       <form className="panel-form" onSubmit={handleSubmit}>
         <div className="form-grid">
           <label className="form-field">
-            <span className="form-label">
-              Identifier <span className="badge">Three words</span>
-            </span>
+            <span className="form-label">Identifier</span>
             <input
               type="text"
               value={identifier}

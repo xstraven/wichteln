@@ -10,10 +10,11 @@ from wichteln.schemas import (
     GroupCreateRequest,
     GroupCreateResponse,
     HealthResponse,
+    IdentifierResponse,
     RevealRequest,
     RevealResponse,
 )
-from wichteln.utils import generate_secret_santa_matches
+from wichteln.utils import generate_secret_santa_matches, generate_identifier
 
 api_router = APIRouter(prefix="/api", tags=["api"])
 
@@ -25,6 +26,12 @@ def _normalise_name(value: str) -> str:
 @api_router.get("/health", response_model=HealthResponse)
 async def health() -> HealthResponse:
     return HealthResponse(status="ok")
+
+
+@api_router.get("/identifier", response_model=IdentifierResponse)
+async def get_identifier() -> IdentifierResponse:
+    """Generate a fresh random 3-word identifier for a secret santa group."""
+    return IdentifierResponse(identifier=generate_identifier())
 
 
 @api_router.post(

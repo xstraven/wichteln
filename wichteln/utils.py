@@ -1,6 +1,15 @@
 import random
 import string
 from typing import Dict, List
+from wichteln.word_bank import WORD_BANK
+
+
+def generate_identifier() -> str:
+    """Generate a random 3-word PascalCase identifier for secret santa groups."""
+    first = random.choice(WORD_BANK["first"])
+    second = random.choice(WORD_BANK["second"])
+    third = random.choice(WORD_BANK["third"])
+    return f"{first}{second}{third}"
 
 
 def generate_unique_code(length: int = 5) -> str:

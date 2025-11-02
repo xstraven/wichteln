@@ -61,3 +61,7 @@ class RevealResponse(BaseModel):
 
 class HealthResponse(BaseModel):
     status: str
+
+
+class IdentifierResponse(BaseModel):
+    identifier: str
