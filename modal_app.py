@@ -5,8 +5,8 @@ from pathlib import Path
 
 import modal
 
-APP_NAME = "storycraft-backend"
-ENV_SECRET_NAME = "storycraft-backend-env"
+APP_NAME = "wichteln-backend"
+ENV_SECRET_NAME = "wichteln-backend-env"
 
 repo_root = Path(__file__).parent
 

@@ -13,7 +13,7 @@ from wichteln.schemas import (
     RevealRequest,
     RevealResponse,
 )
-from wichteln.utils import generate_secret_santa_matches, generate_unique_code, slugify
+from wichteln.utils import generate_secret_santa_matches, slugify
 
 api_router = APIRouter(prefix="/api", tags=["api"])
 
@@ -59,16 +59,13 @@ async def create_group(
             )
         seen_names.add(normalised)
 
-    # Create participant records with unique codes
+    # Create participant records
     participants_data = []
     name_to_participant = {}
     for participant_input in payload.participants:
-        participant_info = {
-            "name": participant_input.name.strip(),
-            "code": generate_unique_code(),
-        }
-        participants_data.append(participant_info)
-        name_to_participant[_normalise_name(participant_input.name)] = participant_info
+        participant_name = participant_input.name.strip()
+        participants_data.append(participant_name)
+        name_to_participant[_normalise_name(participant_name)] = participant_name
 
     # Process constraints
     constraints_data = []
@@ -97,8 +94,8 @@ async def create_group(
 
     # Build constraints map using indices
     for constraint in constraints_data:
-        giver_idx = next(i for i, p in enumerate(participants_data) if _normalise_name(p["name"]) == _normalise_name(constraint["giver"]))
-        receiver_idx = next(i for i, p in enumerate(participants_data) if _normalise_name(p["name"]) == _normalise_name(constraint["receiver"]))
+        giver_idx = next(i for i, p in enumerate(participants_data) if _normalise_name(p) == _normalise_name(constraint["giver"]))
+        receiver_idx = next(i for i, p in enumerate(participants_data) if _normalise_name(p) == _normalise_name(constraint["receiver"]))
         constraints_map.setdefault(giver_idx, []).append(receiver_idx)
 
     try:
@@ -112,8 +109,8 @@ async def create_group(
     matches_data = []
     for giver_idx, receiver_idx in matches_dict.items():
         matches_data.append({
-            "giver": participants_data[giver_idx]["name"],
-            "receiver": participants_data[receiver_idx]["name"],
+            "giver": participants_data[giver_idx],
+            "receiver": participants_data[receiver_idx],
         })
 
     # Create the exchange record
@@ -165,7 +162,7 @@ async def reveal_recipient(
     participant_name = payload.name.strip()
     participant_found = None
     for p in exchange.santa["participants"]:
-        if _normalise_name(p["name"]) == _normalise_name(participant_name):
+        if _normalise_name(p) == _normalise_name(participant_name):
             participant_found = p
             break
 
@@ -194,6 +191,6 @@ async def reveal_recipient(
 
     return RevealResponse(
         identifier=exchange.human_id,
-        participantName=participant_found["name"],
+        participantName=participant_found,
         recipientName=recipient_name,
     )
