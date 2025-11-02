@@ -77,6 +77,7 @@ const CreateGroup = () => {
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<GroupCreateResponse | null>(null);
+  const [copiedId, setCopiedId] = useState<string | null>(null);
 
   const { names, duplicates } = useMemo(() => parseNames(namesInput), [namesInput]);
 
@@ -118,6 +119,17 @@ const CreateGroup = () => {
     setNewPair({ giver: "", receiver: "" });
     setError(null);
     setSuccess(null);
+    setCopiedId(null);
+  };
+
+  const copyIdentifierToClipboard = async (id: string) => {
+    try {
+      await navigator.clipboard.writeText(id);
+      setCopiedId(id);
+      setTimeout(() => setCopiedId(null), 2000);
+    } catch {
+      console.error("Failed to copy identifier");
+    }
   };
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
@@ -315,6 +327,14 @@ const CreateGroup = () => {
               <strong>{success.participantCount}</strong>{" "}
               participant{success.participantCount === 1 ? "" : "s"} in secret.
             </p>
+            <button
+              type="button"
+              className="copy-button"
+              onClick={() => copyIdentifierToClipboard(success.identifier)}
+              title="Copy identifier to clipboard"
+            >
+              {copiedId === success.identifier ? "✓ Copied!" : "📋 Copy identifier"}
+            </button>
             {success.illegalPairCount > 0 ? (
               <p>
                 Honored <strong>{success.illegalPairCount}</strong> forbidden pairing
