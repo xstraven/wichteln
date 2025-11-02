@@ -2,27 +2,38 @@ from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
 from sqlalchemy.orm import sessionmaker
 from wichteln.models import Base
 import os
-from sqlalchemy import inspect, text
+from dotenv import load_dotenv
 
-DATABASE_URL = os.getenv("DATABASE_URL", "sqlite+aiosqlite:///./wichteln.db")
+# Load environment variables from .env file
+load_dotenv()
+
+# Use POSTGRES_CONNECT_STRING from .env, fallback to default if not set
+DATABASE_URL = os.getenv(
+    "DATABASE_URL",
+    os.getenv(
+        "POSTGRES_CONNECT_STRING",
+        "postgresql+psycopg://localhost/wichteln"
+    )
+)
+
+# Update DATABASE_URL to use async driver if needed
+if DATABASE_URL.startswith("postgresql://"):
+    DATABASE_URL = DATABASE_URL.replace("postgresql://", "postgresql+psycopg://")
+elif DATABASE_URL.startswith("postgres://"):
+    DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql+psycopg://")
 
 engine = create_async_engine(DATABASE_URL, echo=True)
 SessionLocal = sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 
+
 async def init_db():
+    """Initialize database - creates tables if they don't exist."""
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
-        
-        def ensure_identifier_column(sync_conn):
-            inspector = inspect(sync_conn)
-            columns = {column["name"] for column in inspector.get_columns("exchanges")}
-            if "identifier" not in columns:
-                sync_conn.execute(text("ALTER TABLE exchanges ADD COLUMN identifier VARCHAR"))
-        
-        await conn.run_sync(ensure_identifier_column)
-        await conn.execute(text("UPDATE exchanges SET identifier = name WHERE identifier IS NULL OR identifier = ''"))
+
 
 async def get_db():
+    """Dependency injection for FastAPI routes - provides AsyncSession."""
     async with SessionLocal() as session:
         try:
             yield session

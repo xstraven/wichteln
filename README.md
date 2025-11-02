@@ -7,6 +7,7 @@ A modern Secret Santa experience built with FastAPI and a festive React frontend
 - **Constraint-aware matching**: Prevent specific pairings (partners, roommates, etc.) while still producing fair matches.
 - **JSON-first backend**: A clean API under `/api` powers the React app and makes automation/simple integrations straightforward.
 - **Static React spa**: Cute, minimal, Christmas themed UI built with Vite + React, ready for static hosting on Vercel, Netlify, or GitHub Pages.
+- **Cloud-ready database**: Uses Neon PostgreSQL with JSONB storage for scalable data management.
 - **Legacy admin screens**: The original server-rendered HTML flows remain optionally available for email-based exchanges.
 
 ## Backend Quick Start
@@ -29,7 +30,13 @@ npm install
 npm run dev
 ```
 
-By default the dev server runs on <http://localhost:5173>. Set `VITE_API_BASE_URL=http://localhost:8000` when you need the frontend to talk to a remote backend.
+By default the dev server runs on <http://localhost:5173> and is configured to talk to the backend at `http://localhost:8000`. If your backend is running on a different host or port, override the `VITE_API_BASE_URL` environment variable:
+
+```bash
+VITE_API_BASE_URL=http://your-backend-host:8000 npm run dev
+```
+
+For production builds, the build script does not set a default API base URL—you should set `VITE_API_BASE_URL` at build time to your deployed backend URL.
 
 To produce a static bundle (for Vercel/Netlify/GitHub Pages):
 
@@ -74,10 +81,22 @@ Error responses follow FastAPI’s usual `{"detail": "..."}` shape.
 
 | Variable | Purpose |
 | --- | --- |
+| `POSTGRES_CONNECT_STRING` | **Required**: Neon PostgreSQL connection string (e.g., `postgresql://user:password@host/database?sslmode=require`). Obtain from your Neon project dashboard. |
+| `DATABASE_URL` | Optional fallback SQLAlchemy connection string. Used if `POSTGRES_CONNECT_STRING` is not set. |
 | `FRONTEND_ORIGINS` | Comma-separated list of origins allowed by CORS. Defaults to `*` for easy local dev. |
 | `ENABLE_LEGACY_ROUTES` | Set to `true` to expose the original HTML UI under `/legacy`. |
-| `DATABASE_URL` | Optional SQLAlchemy connection string (defaults to SQLite `sqlite+aiosqlite:///./wichteln.db`). |
 | `VITE_API_BASE_URL` | Frontend-only; set during build/runtime so the SPA knows where to send API requests. |
+
+### Database Setup
+
+The app uses Neon PostgreSQL with a simplified schema:
+- **Table**: `secret_santa` with UUID primary key, human-readable identifier, and JSONB storage
+- **Columns**:
+  - `uuid`: UUID primary key
+  - `human_id`: Unique human-readable identifier (e.g., "CozyPineMittens")
+  - `santa`: JSONB field containing participants, constraints, and matches
+  - `created_at`: Timestamp when exchange was created
+  - `looked_at`: Timestamp when a match was last revealed
 
 SMTP configuration (`SMTP_SERVER`, `SMTP_PORT`, `SENDER_EMAIL`, `SENDER_PASSWORD`) is still supported for the legacy email workflow.
 
@@ -89,9 +108,9 @@ SMTP configuration (`SMTP_SERVER`, `SMTP_PORT`, `SENDER_EMAIL`, `SENDER_PASSWORD
 
 ## Development Tooling
 
-- **Backend**: FastAPI, SQLAlchemy 2.x, SQLite (default)
+- **Backend**: FastAPI, SQLAlchemy 2.x, Neon PostgreSQL with async psycopg driver
 - **Frontend**: Vite, React 18, React Router 6, TypeScript
-- **Testing**: pytest / pytest-asyncio (backend)
+- **Testing**: pytest / pytest-asyncio (backend) with Neon PostgreSQL
 
 Run backend tests with:
 

@@ -2,9 +2,10 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import Dict, List
+from datetime import datetime
 
 from wichteln.database import get_db
-from wichteln.models import Constraint, Exchange, Match, Participant
+from wichteln.models import SecretSanta
 from wichteln.schemas import (
     GroupCreateRequest,
     GroupCreateResponse,
@@ -36,8 +37,9 @@ async def create_group(
 ) -> GroupCreateResponse:
     identifier_key = payload.identifier.strip()
 
+    # Check if identifier already exists (case-insensitive)
     result = await db.execute(
-        select(Exchange).where(func.lower(Exchange.identifier) == identifier_key.lower())
+        select(SecretSanta).where(func.lower(SecretSanta.human_id) == identifier_key.lower())
     )
     existing = result.scalar_one_or_none()
     if existing:
@@ -46,6 +48,7 @@ async def create_group(
             detail="Identifier already exists. Please choose a different one.",
         )
 
+    # Check for duplicate participant names
     seen_names = set()
     for participant in payload.participants:
         normalised = _normalise_name(participant.name)
@@ -56,83 +59,80 @@ async def create_group(
             )
         seen_names.add(normalised)
 
-    exchange = Exchange(
-        name=payload.description or identifier_key,
-        identifier=identifier_key,
-        description=payload.description,
-        is_completed=False,
-    )
-    db.add(exchange)
-    await db.flush()
-
-    identifier_slug = slugify(identifier_key)
-    email_local_counts: Dict[str, int] = {}
-    participant_records: List[Participant] = []
+    # Create participant records with unique codes
+    participants_data = []
+    name_to_participant = {}
     for participant_input in payload.participants:
-        base_local = slugify(participant_input.name) or "participant"
-        email_local_counts.setdefault(base_local, 0)
-        email_local_counts[base_local] += 1
-        local_part = (
-            base_local
-            if email_local_counts[base_local] == 1
-            else f"{base_local}{email_local_counts[base_local]}"
-        )
-        email = f"{local_part}@{identifier_slug}.invalid"
+        participant_info = {
+            "name": participant_input.name.strip(),
+            "code": generate_unique_code(),
+        }
+        participants_data.append(participant_info)
+        name_to_participant[_normalise_name(participant_input.name)] = participant_info
 
-        participant = Participant(
-            name=participant_input.name.strip(),
-            email=email,
-            code=generate_unique_code(),
-            exchange_id=exchange.id,
-        )
-        db.add(participant)
-        participant_records.append(participant)
-
-    await db.flush()
-
-    name_to_participant = {
-        _normalise_name(participant.name): participant
-        for participant in participant_records
-    }
-
-    constraints_map: Dict[int, List[int]] = {}
+    # Process constraints
+    constraints_data = []
     constraint_count = 0
+    constraints_map: Dict[int, List[int]] = {}
 
     for pair in payload.illegalPairs:
-        giver = name_to_participant.get(_normalise_name(pair.giver))
-        receiver = name_to_participant.get(_normalise_name(pair.receiver))
-        if not giver or not receiver:
+        giver_key = _normalise_name(pair.giver)
+        receiver_key = _normalise_name(pair.receiver)
+
+        if giver_key not in name_to_participant or receiver_key not in name_to_participant:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=f"Constraint references unknown participant: {pair.giver} → {pair.receiver}",
             )
-        constraint = Constraint(
-            participant_id=giver.id, excluded_participant_id=receiver.id
-        )
-        db.add(constraint)
-        constraint_count += 1
-        constraints_map.setdefault(giver.id, []).append(receiver.id)
 
-    participant_ids = [participant.id for participant in participant_records]
+        # Store constraint with participant names for reference
+        constraints_data.append({
+            "giver": pair.giver.strip(),
+            "receiver": pair.receiver.strip(),
+        })
+        constraint_count += 1
+
+    # Generate matches using participant indices as IDs
+    participant_indices = list(range(len(participants_data)))
+
+    # Build constraints map using indices
+    for constraint in constraints_data:
+        giver_idx = next(i for i, p in enumerate(participants_data) if _normalise_name(p["name"]) == _normalise_name(constraint["giver"]))
+        receiver_idx = next(i for i, p in enumerate(participants_data) if _normalise_name(p["name"]) == _normalise_name(constraint["receiver"]))
+        constraints_map.setdefault(giver_idx, []).append(receiver_idx)
 
     try:
-        matches = generate_secret_santa_matches(participant_ids, constraints_map)
+        matches_dict = generate_secret_santa_matches(participant_indices, constraints_map)
     except ValueError as exc:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)
         ) from exc
 
-    for giver_id, receiver_id in matches.items():
-        db.add(
-            Match(exchange_id=exchange.id, giver_id=giver_id, receiver_id=receiver_id)
-        )
+    # Convert matches dict to list format with participant names
+    matches_data = []
+    for giver_idx, receiver_idx in matches_dict.items():
+        matches_data.append({
+            "giver": participants_data[giver_idx]["name"],
+            "receiver": participants_data[receiver_idx]["name"],
+        })
 
-    exchange.is_completed = True
+    # Create the exchange record
+    secret_santa = SecretSanta(
+        human_id=identifier_key,
+        santa={
+            "participants": participants_data,
+            "constraints": constraints_data,
+            "matches": matches_data,
+            "description": payload.description,
+        },
+        created_at=datetime.utcnow(),
+    )
+    db.add(secret_santa)
     await db.commit()
 
     return GroupCreateResponse(
-        identifier=exchange.identifier,
-        participantCount=len(participant_records),
+        identifier=secret_santa.human_id,
+        participantCount=len(participants_data),
         illegalPairCount=constraint_count,
     )
 
@@ -144,8 +144,9 @@ async def create_group(
 async def reveal_recipient(
     identifier: str, payload: RevealRequest, db: AsyncSession = Depends(get_db)
 ) -> RevealResponse:
+    # Find the exchange by identifier (case-insensitive)
     result = await db.execute(
-        select(Exchange).where(func.lower(Exchange.identifier) == identifier.lower())
+        select(SecretSanta).where(func.lower(SecretSanta.human_id) == identifier.lower())
     )
     exchange = result.scalar_one_or_none()
     if not exchange:
@@ -153,43 +154,46 @@ async def reveal_recipient(
             status_code=status.HTTP_404_NOT_FOUND, detail="Group not found."
         )
 
-    participant_result = await db.execute(
-        select(Participant).where(
-            Participant.exchange_id == exchange.id,
-            func.lower(Participant.name) == _normalise_name(payload.name),
+    # Validate that santa data exists
+    if not exchange.santa or "participants" not in exchange.santa or "matches" not in exchange.santa:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Exchange data is incomplete.",
         )
-    )
-    participant = participant_result.scalar_one_or_none()
-    if not participant:
+
+    # Find the participant by name (case-insensitive)
+    participant_name = payload.name.strip()
+    participant_found = None
+    for p in exchange.santa["participants"]:
+        if _normalise_name(p["name"]) == _normalise_name(participant_name):
+            participant_found = p
+            break
+
+    if not participant_found:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Participant not found in this group.",
         )
 
-    match_result = await db.execute(
-        select(Match).where(
-            Match.exchange_id == exchange.id, Match.giver_id == participant.id
-        )
-    )
-    match = match_result.scalar_one_or_none()
-    if not match:
+    # Find the match for this participant
+    recipient_name = None
+    for match in exchange.santa["matches"]:
+        if _normalise_name(match["giver"]) == _normalise_name(participant_name):
+            recipient_name = match["receiver"]
+            break
+
+    if not recipient_name:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Matches have not been generated yet.",
         )
 
-    receiver_result = await db.execute(
-        select(Participant).where(Participant.id == match.receiver_id)
-    )
-    receiver = receiver_result.scalar_one_or_none()
-    if not receiver:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Match data incomplete. Please regenerate the group.",
-        )
+    # Update looked_at timestamp
+    exchange.looked_at = datetime.utcnow()
+    await db.commit()
 
     return RevealResponse(
-        identifier=exchange.identifier,
-        participantName=participant.name,
-        recipientName=receiver.name,
+        identifier=exchange.human_id,
+        participantName=participant_found["name"],
+        recipientName=recipient_name,
     )
