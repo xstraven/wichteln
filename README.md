@@ -1,122 +1,70 @@
 # wichteln
 
-A modern Secret Santa experience built with FastAPI and a festive React frontend. Create groups with whimsical three-word identifiers, apply gifting constraints, and let participants reveal their match without spoilers.
+A Secret Santa gift exchange web app. Create groups with PascalCase three-word identifiers, add gifting constraints, and reveal matches—no registration needed.
 
-## Features
-- **Identifier-based groups**: Spin up an exchange with any PascalCase three-word identifier (e.g. `CozyPineMittens`) that participants can use later.
-- **Constraint-aware matching**: Prevent specific pairings (partners, roommates, etc.) while still producing fair matches.
-- **JSON-first backend**: A clean API under `/api` powers the React app and makes automation/simple integrations straightforward.
-- **Static React spa**: Cute, minimal, Christmas themed UI built with Vite + React, ready for static hosting on Vercel, Netlify, or GitHub Pages.
-- **Cloud-ready database**: Uses Neon PostgreSQL with JSONB storage for scalable data management.
-- **Legacy admin screens**: The original server-rendered HTML flows remain optionally available for email-based exchanges.
+## Quick Start
 
-## Backend Quick Start
-
+### Backend
 ```bash
-# Install Python dependencies (requires Python 3.10+)
 uv sync
-
-# Run the FastAPI server
-uv run uvicorn wichteln.main:app --host 0.0.0.0 --port 8000 --reload
+uv run uvicorn wichteln.main:app --reload
+# API: http://localhost:8000/api
 ```
 
-The backend exposes the JSON API on `http://localhost:8000/api` and, if a production build of the frontend is present (`frontend/dist`), also serves the SPA on `http://localhost:8000/`.
-
-## Frontend (React) Quick Start
-
+### Frontend
 ```bash
-cd frontend
-npm install
-npm run dev
+cd frontend && npm install && npm run dev
+# Dev server: http://localhost:5173
+# Talks to backend at http://localhost:8000
 ```
 
-By default the dev server runs on <http://localhost:5173> and is configured to talk to the backend at `http://localhost:8000`. If your backend is running on a different host or port, override the `VITE_API_BASE_URL` environment variable:
-
+Override the backend URL with `VITE_API_BASE_URL`:
 ```bash
-VITE_API_BASE_URL=http://your-backend-host:8000 npm run dev
+VITE_API_BASE_URL=http://your-api-host npm run dev
 ```
 
-For production builds, the build script does not set a default API base URL—you should set `VITE_API_BASE_URL` at build time to your deployed backend URL.
-
-To produce a static bundle (for Vercel/Netlify/GitHub Pages):
-
+Production build:
 ```bash
-npm run build
+npm run build  # Output: frontend/dist
 ```
-
-The build output lives in `frontend/dist` and can be deployed directly.
 
 ## How It Works
 
-1. **Create a group:** Pick a PascalCase identifier, paste your participant names, and optionally add forbidden giver → receiver pairs.
-2. **Share the identifier:** Only the identifier is needed—no codes or emails required.
-3. **Reveal assignments:** Participants enter the identifier and their own name to see who they are gifting.
-4. **(Optional) Legacy flow:** Set `ENABLE_LEGACY_ROUTES=true` to re-enable the original HTML admin pages for email-based workflows at `/legacy`.
+1. **Create**: Pick a 3-word PascalCase identifier (e.g. `CozyPineMittens`), add participants and optional constraints.
+2. **Share**: Only the identifier is needed.
+3. **Reveal**: Participants enter the identifier and their name to see who they're gifting.
 
-## API Overview
+## API
 
-- `POST /api/groups`  
-  Create a new exchange. Body:
-  ```json
-  {
-    "identifier": "CozyPineMittens",
-    "participants": [{ "name": "Jamie" }, { "name": "Alex" }],
-    "illegalPairs": [{ "giver": "Jamie", "receiver": "Alex" }],
-    "description": "Optional notes"
-  }
-  ```
+- `POST /api/groups` – Create exchange
+- `POST /api/groups/{identifier}/reveal` – Reveal recipient
+- `GET /api/health` – Health check
 
-- `POST /api/groups/{identifier}/reveal`  
-  Reveal a participant’s assigned recipient. Body:
-  ```json
-  { "name": "Jamie" }
-  ```
-
-- `GET /api/health`  
-  Simple readiness probe.
-
-Error responses follow FastAPI’s usual `{"detail": "..."}` shape.
+See `CLAUDE.md` for full payload examples.
 
 ## Configuration
 
 | Variable | Purpose |
-| --- | --- |
-| `POSTGRES_CONNECT_STRING` | **Required**: Neon PostgreSQL connection string (e.g., `postgresql://user:password@host/database?sslmode=require`). Obtain from your Neon project dashboard. |
-| `DATABASE_URL` | Optional fallback SQLAlchemy connection string. Used if `POSTGRES_CONNECT_STRING` is not set. |
-| `FRONTEND_ORIGINS` | Comma-separated list of origins allowed by CORS. Defaults to `*` for easy local dev. |
-| `ENABLE_LEGACY_ROUTES` | Set to `true` to expose the original HTML UI under `/legacy`. |
-| `VITE_API_BASE_URL` | Frontend-only; set during build/runtime so the SPA knows where to send API requests. |
+|----------|---------|
+| `POSTGRES_CONNECT_STRING` | **Required**: Neon PostgreSQL connection string |
+| `VITE_API_BASE_URL` | Frontend: set to your backend URL (defaults to relative `/api` for same-domain deployments) |
+| `FRONTEND_ORIGINS` | CORS origins (defaults to `*`) |
+| `ENABLE_LEGACY_ROUTES` | Set `true` to enable legacy HTML UI at `/legacy` |
 
-### Database Setup
+## Deployment
 
-The app uses Neon PostgreSQL with a simplified schema:
-- **Table**: `secret_santa` with UUID primary key, human-readable identifier, and JSONB storage
-- **Columns**:
-  - `uuid`: UUID primary key
-  - `human_id`: Unique human-readable identifier (e.g., "CozyPineMittens")
-  - `santa`: JSONB field containing participants, constraints, and matches
-  - `created_at`: Timestamp when exchange was created
-  - `looked_at`: Timestamp when a match was last revealed
+- **Single domain**: Backend serves both API and built frontend
+  - Build frontend: `npm run build`
+  - Deploy FastAPI app normally; it serves `frontend/dist` automatically
+  - Set `VITE_API_BASE_URL=/api` at build time (or leave unset for relative URLs)
 
-SMTP configuration (`SMTP_SERVER`, `SMTP_PORT`, `SENDER_EMAIL`, `SENDER_PASSWORD`) is still supported for the legacy email workflow.
+- **Separate backends**: Upload `frontend/dist` to static host, set `VITE_API_BASE_URL` to your API URL
 
-## Deployment Notes
+## Tech Stack
 
-- **Backend**: Deploy like any FastAPI application (Dockerfile provided). The server automatically serves the built frontend from `frontend/dist` when those assets are present.
-- **Frontend-only hosting**: Run `npm run build`, upload `frontend/dist` to a static host (Vercel, Netlify, etc.), and set `VITE_API_BASE_URL` to your backend URL.
-- **Vercel**: Create a Vite project on Vercel pointing to `frontend`, set a build command of `npm run build`, and configure the `VITE_API_BASE_URL` environment variable.
-
-## Development Tooling
-
-- **Backend**: FastAPI, SQLAlchemy 2.x, Neon PostgreSQL with async psycopg driver
-- **Frontend**: Vite, React 18, React Router 6, TypeScript
-- **Testing**: pytest / pytest-asyncio (backend) with Neon PostgreSQL
-
-Run backend tests with:
-
-```bash
-uv run pytest
-```
+- Backend: FastAPI, SQLAlchemy 2.x, Neon PostgreSQL
+- Frontend: React 18, TypeScript, Vite
+- Testing: pytest + pytest-asyncio
 
 ## License
 
