@@ -34,6 +34,7 @@ const Layout = ({ children }: LayoutProps) => {
       <main className="app-main">{children}</main>
       <footer className="app-footer">
         <small>Made with ❤️, cocoa, and a dash of cinnamon.</small>
+        <small className="imprint">Impressum – David Hinrichs, Reuterstr. 1, 12053 Berlin</small>
       </footer>
     </div>
   );
