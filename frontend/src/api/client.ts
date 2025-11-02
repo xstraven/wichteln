@@ -81,4 +81,11 @@ export async function revealMatch(
   });
 }
 
+export async function fetchIdentifier(): Promise<string> {
+  const response = await request<{ identifier: string }>("/api/identifier", {
+    method: "GET",
+  });
+  return response.identifier;
+}
+
 export { ApiError };

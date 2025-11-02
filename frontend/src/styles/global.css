@@ -337,21 +337,6 @@ button {
   box-shadow: 0 0 0 3px rgba(91, 141, 239, 0.18);
 }
 
-.identifier-input {
-  display: flex;
-  gap: 0.75rem;
-  align-items: flex-end;
-}
-
-.identifier-input input {
-  flex: 1;
-}
-
-.identifier-input .ghost-button {
-  white-space: nowrap;
-  flex-shrink: 0;
-}
-
 .ghost-button {
   padding: 0.6rem 1rem;
   border-radius: 999px;
@@ -531,19 +516,6 @@ button {
 
   .pair-arrow {
     display: none;
-  }
-
-  .identifier-input {
-    flex-direction: column;
-    align-items: stretch;
-  }
-
-  .identifier-input input {
-    flex: 1;
-  }
-
-  .identifier-input .ghost-button {
-    width: 100%;
   }
 
   .cta-group {

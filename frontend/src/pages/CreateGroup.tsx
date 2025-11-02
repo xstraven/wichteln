@@ -1,44 +1,14 @@
-import { FormEvent, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useState } from "react";
 import {
   ApiError,
   createGroup,
   CreateGroupPayload,
+  fetchIdentifier,
   GroupCreateResponse,
   IllegalPairPayload,
 } from "../api/client";
 
-const WORD_BANK = {
-  first: [
-    "Santa", "Elf", "Reindeer", "Rudolph", "Dasher", "Dancer", "Prancer", "Vixen", "Comet", "Cupid",
-    "Donner", "Blitzen", "Snowman", "Gingerbread", "Nutcracker", "Angel", "Cherub", "Caroler", "Krampus", "Scrooge",
-    "Frosty", "Jolly", "Merry", "Cheerful", "Magical", "Festive", "Sparkly", "Twinkling", "Shimmering", "Glowing",
-    "Bright", "Radiant", "Gleaming", "Dazzling", "Luminous", "Enchanted", "Whimsical", "Joyful", "Jolting", "Singing",
-    "Dancing", "Prancing", "Leaping", "Galloping", "Trotting", "Hopping", "Skipping", "Waltzing", "Spinning", "Twirling",
-  ],
-  second: [
-    "Cinnamon", "Nutmeg", "Clementine", "Peppermint", "Gingerbread", "Candy", "Caramel", "Chocolate", "Vanilla", "Eggnog",
-    "Cranberry", "Orange", "Lemon", "Honey", "Molasses", "Allspice", "Cardamom", "Anise", "Clove", "Ginger",
-    "Hazelnut", "Almond", "Walnut", "Pine", "Cedar", "Fir", "Spruce", "Holly", "Mistletoe", "Frankincense",
-    "Myrrh", "Rose", "Licorice", "Butterscotch", "Toffee", "Fudge", "Praline", "Nougat", "Truffle", "Ganache",
-    "Frosting", "Icing", "Fondant", "Glaze", "Sugar", "Spice", "Mace", "Sage", "Coriander", "Cumin",
-  ],
-  third: [
-    "Ornament", "Tinsel", "Garland", "Wreath", "Lights", "Candle", "Lantern", "Star", "Snowflake", "Icicle",
-    "Stocking", "Ribbon", "Bow", "Gift", "Present", "Package", "Bell", "Chime", "Carol", "Song",
-    "Hymn", "Choir", "Feast", "Dinner", "Supper", "Cake", "Cookie", "Pie", "Pudding", "Custard",
-    "Compote", "Sauce", "Treat", "Sweet", "Dessert", "Beverage", "Punch", "Cocoa", "Coffee", "Tea",
-    "Wassail", "Mulled", "Spiced", "Roasted", "Baked", "Glazed", "Tree", "Angel", "Sleigh", "Mittens",
-  ],
-};
-
 const PASCAL_THREE_WORDS = /^[A-Z][a-z]+(?:[A-Z][a-z]+){2,}$/;
-
-const randomIdentifier = () => {
-  const first = WORD_BANK.first[Math.floor(Math.random() * WORD_BANK.first.length)];
-  const second = WORD_BANK.second[Math.floor(Math.random() * WORD_BANK.second.length)];
-  const third = WORD_BANK.third[Math.floor(Math.random() * WORD_BANK.third.length)];
-  return `${first}${second}${third}`;
-};
 
 type ParsedNames = {
   names: string[];
@@ -69,7 +39,7 @@ const parseNames = (raw: string): ParsedNames => {
 };
 
 const CreateGroup = () => {
-  const [identifier, setIdentifier] = useState<string>(randomIdentifier());
+  const [identifier, setIdentifier] = useState<string>("");
   const [description, setDescription] = useState<string>("");
   const [namesInput, setNamesInput] = useState<string>("");
   const [illegalPairs, setIllegalPairs] = useState<IllegalPairPayload[]>([]);
@@ -78,6 +48,21 @@ const CreateGroup = () => {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<GroupCreateResponse | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
+
+  // Fetch a fresh identifier when component mounts
+  useEffect(() => {
+    const loadIdentifier = async () => {
+      try {
+        const newId = await fetchIdentifier();
+        setIdentifier(newId);
+      } catch (err) {
+        console.error("Failed to fetch identifier:", err);
+        // Fallback: allow user to enter their own
+        setIdentifier("");
+      }
+    };
+    loadIdentifier();
+  }, []);
 
   const { names, duplicates } = useMemo(() => parseNames(namesInput), [namesInput]);
 
@@ -111,8 +96,13 @@ const CreateGroup = () => {
     setIllegalPairs((prev) => prev.filter((_, idx) => idx !== index));
   };
 
-  const resetForm = () => {
-    setIdentifier(randomIdentifier());
+  const resetForm = async () => {
+    try {
+      const newId = await fetchIdentifier();
+      setIdentifier(newId);
+    } catch (err) {
+      console.error("Failed to fetch identifier:", err);
+    }
     setDescription("");
     setNamesInput("");
     setIllegalPairs([]);
@@ -192,23 +182,13 @@ const CreateGroup = () => {
             <span className="form-label">
               Identifier <span className="badge">Three words</span>
             </span>
-            <div className="identifier-input">
-              <input
-                type="text"
-                value={identifier}
-                onChange={(event) => setIdentifier(event.target.value)}
-                placeholder="CozyPineMittens"
-                aria-invalid={identifierError ? "true" : "false"}
-              />
-              <button
-                type="button"
-                className="ghost-button"
-                onClick={() => setIdentifier(randomIdentifier())}
-                title="Generate a fresh suggestion"
-              >
-                Shuffle ✨
-              </button>
-            </div>
+            <input
+              type="text"
+              value={identifier}
+              onChange={(event) => setIdentifier(event.target.value)}
+              placeholder="CozyPineMittens"
+              aria-invalid={identifierError ? "true" : "false"}
+            />
             {identifierError ? <small className="form-hint error">{identifierError}</small> : null}
           </label>
 
