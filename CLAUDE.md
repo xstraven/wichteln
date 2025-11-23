@@ -14,7 +14,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ### Core Concepts
 
-1. **Identifier-based groups**: Users create exchanges with PascalCase three-word identifiers (e.g., `CozyPineMittens`), generated from a hardcoded word bank of 50 words per category (150,000+ combinations).
+1. **Identifier-based groups**: Users create exchanges with PascalCase three-word identifiers (e.g., `CozyPineMittens`), generated from a hardcoded word bank of 50 words per category (125,000 combinations).
 2. **Participants as flat list**: Each exchange stores participants as a simple array of strings `["Alice", "Bob"]` in the JSONB `santa` field.
 3. **Constraint-aware matching**: The matching algorithm respects illegal giver→receiver pairs while ensuring no one draws themselves.
 4. **Stateless reveals**: Participants enter their group identifier and name to look up their assigned recipient (no login required).
@@ -51,7 +51,7 @@ See `README.md` for payload details.
 | **Run backend (dev)** | `uv run uvicorn wichteln.main:app --reload` (port 8000) |
 | **Run single test** | `uv run pytest tests/test_api.py::test_create_group_basic -v` |
 | **Run all tests** | `uv run pytest` |
-| **Frontend dev** | `cd frontend && npm install && npm run dev` (port 5173) |
+| **Frontend dev** | `cd frontend && npm install && npm run dev` (port 5173, proxies to backend at :8000) |
 | **Frontend build** | `cd frontend && npm run build` (outputs to `frontend/dist`) |
 | **Frontend preview** | `cd frontend && npm run preview` |
 
@@ -138,15 +138,38 @@ Run a single test:
 uv run pytest tests/test_api.py::test_create_group_and_reveal -v
 ```
 
+## Deployment
+
+The app supports two deployment patterns:
+
+### Single-Domain Deployment (Recommended)
+
+The FastAPI backend automatically serves the built frontend from `frontend/dist`:
+1. Build the frontend: `cd frontend && npm run build`
+2. Deploy the backend normally (the app will serve static files from `frontend/dist`)
+3. SPA routing is handled by `main.py:47-59` – all non-API routes serve `index.html`
+4. Set `VITE_API_BASE_URL=/api` during build (or leave unset for relative URLs)
+
+The backend blocks requests to `/api`, `/assets`, `/docs`, `/openapi.json`, and `/redoc` from being served as SPA routes.
+
+### Separate Deployment
+
+Deploy frontend and backend separately:
+1. **Frontend**: Upload `frontend/dist` to a static host (e.g., Vercel)
+   - The included `frontend/vercel.json` configures SPA routing for Vercel
+   - Set `VITE_API_BASE_URL` to your backend URL at build time
+2. **Backend**: Deploy FastAPI app to any host
+   - Configure `FRONTEND_ORIGINS` to allow CORS from your frontend domain
+
 ## Configuration
 
 Required environment variables:
 - `POSTGRES_CONNECT_STRING` or `DATABASE_URL` – Neon PostgreSQL connection string
 
 Optional:
-- `FRONTEND_ORIGINS` – CORS allowed origins (default: `*`)
-- `ENABLE_LEGACY_ROUTES` – Set to `true` to enable legacy HTML admin UI
-- `VITE_API_BASE_URL` – Frontend build-time/runtime config for API base URL
+- `FRONTEND_ORIGINS` – CORS allowed origins (default: `*`); comma-separated list
+- `ENABLE_LEGACY_ROUTES` – Set to `true` to enable legacy HTML admin UI at `/legacy`
+- `VITE_API_BASE_URL` – Frontend: API base URL (default: relative `/api` path for same-domain deploys)
 
 ## Key Files to Know
 
