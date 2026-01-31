@@ -3,7 +3,7 @@ name = "wichteln"
 version = "0.1.0"
 description = "A secret santa style gift exchange web app"
 authors = [
-    {name = "David Hinrichs", email = "dvd.hnrchs@gmail.com"}
+    {email = "xstraven@proton.me"}
 ]
 license = {text = "MIT"}
 requires-python = ">=3.10"
